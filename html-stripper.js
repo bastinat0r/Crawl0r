@@ -29,6 +29,7 @@ var srv = http.createServer(function(req, res) {
 		};
 		var analyzerReq = http.request(analyzerOpts);
 		analyzerReq.end(stripped);
+		analyzerReq.on('error', util.puts);
 	});
 });
 srv.listen(13336);

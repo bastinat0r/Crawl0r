@@ -6,7 +6,6 @@ var tokens = {};
 var totalTokens = 0;
 
 function tokenize(text, cb) {
-	util.puts(text);
 	tokenList = ("" + ("" + text).replace(/[^\w\d]/g, ' ')).toLowerCase().split(' ');
 	for(var i in tokenList) {
 		if(tokenList[i] !== "") {
