@@ -1,4 +1,5 @@
 var http = require('http');
+var util = require('util');
 
 var hosts = ['blog.bastinat0r.de'];
 var done = [];
@@ -12,19 +13,34 @@ var srv = http.createServer(function(req, res) {
 		if(req.method == "POST") {
 			res.writeHead(200);
 			res.end();
-			if(done.indexOf(data) < 0) {
+			if(done.indexOf(data) < 0 && hosts.indexOf(data) < 0) {
 				hosts.push(data);
 			}
 		}
 		if(req.method == "GET") {
-			if(hosts.length > 0) {
-				res.writeHead(200);
-				var host = hosts.shift();
-				done.push(host);
-				res.write(host);
-			}
-			else {
-				res.writeHead(404);
+			if(req.path == '/') {
+				util.puts(done.length + " : " + hosts.length);
+				if(hosts.length > 0) {
+					res.writeHead(200);
+					var host = hosts.shift();
+					done.push(host);
+					res.end(host);
+				}
+				else {
+					res.writeHead(404);
+					res.end();
+				}
+			} else {
+				if(req.path == '/lists') {
+					res.writeHead(200);
+					res.write('Done: ' + done.length + ' \n');
+					for(var i in done)
+						res.write(done[i]+'\n');
+					res.write('Hosts: ' + hosts.length + '\n');
+					for(var i in hosts)
+						res.write(hosts[i] + '\n');
+					res.end();
+				}
 			}
 		}
 	});
