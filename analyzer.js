@@ -4,6 +4,7 @@ var stemmer = require('porter-stemmer').stemmer;
 
 var tokens = {};
 var totalTokens = 0;
+var numWords = 0;
 
 function tokenize(text, cb) {
 	tokenList = ("" + ("" + text).replace(/[^\w\d]/g, ' ')).toLowerCase().split(' ');
@@ -14,7 +15,10 @@ function tokenize(text, cb) {
 			if(totalTokens%1000 === 0)
 				util.puts(totalTokens);
 			if(typeof(tokens[stemm]) === 'undefined') {
-				tokens[stemm] = 1;
+				if(numWords < 50000) {
+					tokens[stemm] = 1;
+					numWords++;
+				}
 			}
 			else {
 				tokens[stemm]++;
@@ -30,7 +34,8 @@ function writeTokens(fn, cb) {
 		fn = util.puts;
 	var tuples = [];
 	for (var i in tokens) {
-		tuples.push([tokens[i], i]);
+		if(tokens[i] < 5)
+			tuples.push([tokens[i], i]);
 	}
 	tuples = tuples.sort(function(a,b) {
 		return - a[0] + b[0];

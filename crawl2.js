@@ -6,9 +6,12 @@ var timer = require('timers');
 var done = [];
 var hosts = ['blog.bastinat0r.de'];
 var garbage = /(\.(ico|rss|atom|gif|jpg|jpeg|png|css|js|json|yaml|bin|exe|sh|xml|pdf|mp3|m3u|mp4|mpeg|mpg|mov|opus|aac|java|o|tar|gz|zip|rar|torrent|min|xrd)|(wikipedia)|#)/i;
+var workers = 0;
+var internalUrls = {};
+var nextUrls = [];
 
 function crawlHost() {
-	var getHost = http.get('http://localhost:13335', function(resHost) {
+	var getHost = http.get('http://localhost:13335/', function(resHost) {
 		if(resHost.statusCode < 400) {
 			var data = "";
 			resHost.on('data', function(chunk) {
@@ -21,7 +24,6 @@ function crawlHost() {
 				};
 				done.push(data);
 				util.puts(host.url);
-				var internalUrls = ['/'];
 				var get = http.get('http://' + host.url + '/robots.txt', function(res) {
 					var data = "";
 					res.on('data', function(chunk) {
@@ -48,14 +50,18 @@ function crawlHost() {
 							disallow.push(new RegExp(regex, 'i'));
 						}
 						host.disallow = disallow;
+						internalUrls['/'] = 1;
+						nextUrls = [];
 						temp = data.match(/\nallow\s*\:\s*\/.*/gi);
 						for(i in temp) {
-							internalUrls.push(temp[i].replace(/\nallow\s*\:\s*/i,''));
+							internalUrls[temp[i].replace(/\nallow\s*\:\s*/i,'')] = 1;
 						}
-						crawlInternal(host, internalUrls);
+						workers = 0;
+						crawlInternal(host);
 					});
 				});
 				get.on('error', function(e) {
+					crawlHost();
 					util.puts(e);
 				});
 			});
@@ -69,70 +75,74 @@ function crawlHost() {
 	});
 };
 
-function crawlInternal(host, internalUrls, internalDone) {
-	if(internalDone == null)
-		internalDone = [];
-	if(internalUrls.length == 0) {
-		crawlHost();
-		return;
-	}
-	current = internalUrls.shift();
-	if(internalDone.indexOf(current) >= 0) {
-		util.puts('duplicate url: ' + current);
-		crawlInternal(host, internalUrls, internalDone);
-	}
-	else {
-		util.puts('  ' + current);
-		internalDone.push(current);
-		var req = http.get('http://' + host.url + current, function(res) {
-			if(!(res.statusCode < 300 && res.headers["content-type"] != null && /text\/(plain|html)/.test(res.headers["content-type"]))) {
-				util.puts('    ' + res.statusCode);
-				util.puts('    ' + res.headers["content-type"]);
-				if(res.statusCode < 304 || res.statusCode == 307) {
-					href = "\<a\s[^\>]*href=\"" + res.headers["location"] + "\"";
-					scrapeUrls(href, host, internalUrls, internalDone);
-				} else {
-					crawlInternal(host, internalUrls, internalDone);
+function crawlInternal(host) {
+	if(nextUrls.length == 0) {
+		for(i in internalUrls) {
+			if(internalUrls[i] == 1) {
+				internalUrls[i] = 2;
+				util.puts(i + ' ' + internalUrls[i]);
+				nextUrls.push(i);
+				if(nextUrls.length > 1000) {
+					break;
 				}
-			} else {
-				var data = "";
-				res.on('data', function(chunk) {
-					data = data + chunk;
-				});
-				res.on('end', function() {
-					if(/[\.\s\(](of|and|for|is|on|that|der|die|das|und|oder)[\.\,\s\)]/i.test(data)) {
-						scrapeUrls(data, host, internalUrls, internalDone);
-						var site = {
-							url : 'http://' + host.url + current,
-							statuscode : res.statusCode,
-							headers : res.headers,
-							text : data,
-						};
-						var postopts = {
-							host : "localhost",
-							port : "13336",
-							method : "post",
-							path : "/"
-						};
-						var postreq = http.request(postopts);
-						postreq.end(JSON.stringify(site));
-						postreq.on('error', util.puts);
-
-					} else {
-						crawlInternal(host, internalUrls, internalDone);
-					}
-				});
 			}
-		});
-		req.on('error', function(e) {
-			util.puts('*' + e);
-			util.puts('http://' + host.url + current);
-			crawlInternal(host, internalUrls, internalDone);
-		});
+		}
+		if(nextUrls.length == 0) {
+			crawlHost();
+			return;
+		}
 	}
+	current = nextUrls.shift();
+	util.puts('  ' + current);
+	internalUrls[current] = 2;
+	var req = http.get('http://' + host.url + current, function(res) {
+		if(!(res.statusCode < 300 && res.headers["content-type"] != null && /text\/(plain|html)/.test(res.headers["content-type"]))) {
+			util.puts('    ' + res.statusCode);
+			util.puts('    ' + res.headers["content-type"]);
+			if(res.statusCode < 304 || res.statusCode == 307) {
+				href = "\<a\s[^\>]*href=\"" + res.headers["location"] + "\"";
+				scrapeUrls(href, host);
+			} else {
+				crawlInternal(host);
+			}
+		} else {
+			var data = "";
+			res.on('data', function(chunk) {
+				data = data + chunk;
+			});
+			res.on('end', function() {
+				if(/[\.\s\(](of|and|for|is|on|that|der|die|das|und|oder)[\.\,\s\)]/i.test(data)) {
+					scrapeUrls(data, host);
+					var site = {
+						url : 'http://' + host.url + current,
+						statuscode : res.statusCode,
+						headers : res.headers,
+						text : data,
+					};
+					var postopts = {
+						host : "localhost",
+						port : "13336",
+						method : "post",
+						path : "/"
+					};
+					var postreq = http.request(postopts);
+					postreq.end(JSON.stringify(site));
+					postreq.on('error', util.puts);
+
+				} else {
+					crawlInternal(host);
+				}
+			});
+		}
+	});
+	req.on('error', function(e) {
+		util.puts('*' + e);
+		util.puts('http://' + host.url + current);
+		crawlInternal(host);
+	});
 };
 
-function scrapeUrls(text, host, internalUrls, internalDone) {
+function scrapeUrls(text, host) {
 	var hrefs = text.match(/href=\"[^\"]*\"/ig);
 	for(var i in hrefs) {
 		var href = hrefs[i].replace(/(href=\"|"$)/gi, '');
@@ -163,19 +173,13 @@ function scrapeUrls(text, host, internalUrls, internalDone) {
 				}
 			}
 			if(allowed && !garbage.test(href)) {
-				if(internalUrls.indexOf(href) < 0 && internalDone.indexOf(href) < 0) {
-					internalUrls.push(href);
+				if(!internalUrls[href]) {
+					internalUrls[href] = 1;
 				}
 			}
 		}
 	};
-	util.puts('  ' +  host.url + ' ' + internalDone.length + ' : ' + internalUrls.length);
-	if(internalUrls.length > 0)
-		crawlInternal(host, internalUrls, internalDone);
-	else
-	{	
-		crawlHost();
-	}	
+	crawlInternal(host);
 };
 
 crawlHost();
