@@ -20,7 +20,7 @@ var srv = http.createServer(function(req, res) {
 			}
 		}
 		if(req.method == "GET") {
-			if(req.url != '/lists') {
+			if(req.url == '/') {
 				util.puts(done.length + " : " + hosts.length);
 				var dps = done.length * 1000.0 / (new Date() - startTime); 
 				util.puts(dps + ' dps');
@@ -37,12 +37,12 @@ var srv = http.createServer(function(req, res) {
 				}
 			} else {
 				res.writeHead(200);
-				res.write('Done: ' + done.length + ' \n');
+				res.write('\nDone: ' + done.length + ' \n\n');
 				for(var i in done)
-					res.write(done[i]+'\n');
-				res.write('Hosts: ' + hosts.length + '\n');
+					res.write('  ' + done[i]+'\n');
+				res.write('\nHosts: ' + hosts.length + '\n\n');
 				for(var i in hosts)
-					res.write(hosts[i] + '\n');
+					res.write('  ' + hosts[i] + '\n');
 				res.end();
 			}
 		}

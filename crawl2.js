@@ -6,9 +6,9 @@ var timer = require('timers');
 var done = [];
 var hosts = ['blog.bastinat0r.de'];
 var garbage = /(\.(ico|rss|atom|gif|jpg|jpeg|png|css|js|json|yaml|bin|exe|sh|xml|pdf|mp3|m3u|mp4|mpeg|mpg|mov|opus|aac|java|o|tar|gz|zip|rar|torrent|min|xrd)|(wikipedia)|#)/i;
-var workers = 0;
 var internalUrls = {};
 var nextUrls = [];
+var verbosity = 2;
 
 function crawlHost() {
 	var getHost = http.get('http://localhost:13335/', function(resHost) {
@@ -16,14 +16,14 @@ function crawlHost() {
 			var data = "";
 			resHost.on('data', function(chunk) {
 				data = data + chunk;
-				util.puts(data);
 			});
 			resHost.on('end', function() {
 				var host = {
 					url : data
 				};
 				done.push(data);
-				util.puts(host.url);
+				if(verbosity > 0)
+					util.puts(host.url);
 				var get = http.get('http://' + host.url + '/robots.txt', function(res) {
 					var data = "";
 					res.on('data', function(chunk) {
@@ -80,7 +80,6 @@ function crawlInternal(host) {
 		for(i in internalUrls) {
 			if(internalUrls[i] == 1) {
 				internalUrls[i] = 2;
-				util.puts(i + ' ' + internalUrls[i]);
 				nextUrls.push(i);
 				if(nextUrls.length > 1000) {
 					break;
@@ -93,12 +92,17 @@ function crawlInternal(host) {
 		}
 	}
 	current = nextUrls.shift();
-	util.puts('  ' + current);
+	if(verbosity > 1) {
+		util.puts(host.url + '  :  ' + nextUrls.length);
+		util.puts('  ' + current);
+	}
 	internalUrls[current] = 2;
 	var req = http.get('http://' + host.url + current, function(res) {
 		if(!(res.statusCode < 300 && res.headers["content-type"] != null && /text\/(plain|html)/.test(res.headers["content-type"]))) {
-			util.puts('    ' + res.statusCode);
-			util.puts('    ' + res.headers["content-type"]);
+			if(verbosity > 2) {
+				util.puts('    ' + res.statusCode);
+				util.puts('    ' + res.headers["content-type"]);
+			}
 			if(res.statusCode < 304 || res.statusCode == 307) {
 				href = "\<a\s[^\>]*href=\"" + res.headers["location"] + "\"";
 				scrapeUrls(href, host);
@@ -106,19 +110,18 @@ function crawlInternal(host) {
 				crawlInternal(host);
 			}
 		} else {
-			var data = "";
+			var site = {
+				url : host.url + current,
+				statuscode : res.statusCode,
+				headers : res.headers,
+				text : "",
+			};
 			res.on('data', function(chunk) {
-				data = data + chunk;
+				site.text = site.text + chunk;
 			});
 			res.on('end', function() {
-				if(/[\.\s\(](of|and|for|is|on|that|der|die|das|und|oder)[\.\,\s\)]/i.test(data)) {
-					scrapeUrls(data, host);
-					var site = {
-						url : 'http://' + host.url + current,
-						statuscode : res.statusCode,
-						headers : res.headers,
-						text : data,
-					};
+				if(/[\.\s\(](of|and|for|is|on|that|der|die|das|und|oder)[\.\,\s\)]/i.test(site.text)) {
+					scrapeUrls(site.text, host);
 					var postopts = {
 						host : "localhost",
 						port : "13336",
@@ -158,7 +161,9 @@ function scrapeUrls(text, host) {
 				}
 				var req = http.request(reqOpts);
 				req.end(parse.host);
-				util.puts('    ' + parse.host);
+				if(verbosity > 1) {
+					util.puts('    ' + parse.host);
+				}
 				done.push(parse.host);
 			}
 		}
@@ -167,8 +172,6 @@ function scrapeUrls(text, host) {
 			for(var j in host.disallow) {
 				if(host.disallow[j].test(href)) {
 					allowed = false;
-					//util.puts(host.disallow[j]);
-					//util.puts('disallow: ' + href);
 					break;
 				}
 			}

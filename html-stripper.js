@@ -10,7 +10,7 @@ var srv = http.createServer(function(req, res) {
 		res.writeHead(200);
 		res.end();
 		var site = JSON.parse(data);
-		var body = /\<body(.|[\n\r])*\<\/body/gi.exec(site.text);
+		var body = /\<body(.|[\n\r])*\<\/body/i.exec(site.text);
 		if(!body) {
 			body = site.text; 
 			util.puts(body);
@@ -21,6 +21,7 @@ var srv = http.createServer(function(req, res) {
 		}
 		body = "" + (""+ body).replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>*/gi, '');
 		var stripped = body.replace(/\<[^\>]*>/g,'').replace(/\{[^\}]*}/g,'');
+		site.text = stripped;
 		var analyzerOpts = {
 			host : "localhost",
 			port : "13337",
@@ -28,7 +29,7 @@ var srv = http.createServer(function(req, res) {
 			path : "/"
 		};
 		var analyzerReq = http.request(analyzerOpts);
-		analyzerReq.end(stripped);
+		analyzerReq.end(JSON.stringify(site));
 		analyzerReq.on('error', util.puts);
 	});
 });

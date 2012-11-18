@@ -6,27 +6,32 @@ var tokens = {};
 var totalTokens = 0;
 var numWords = 0;
 
-function tokenize(text, cb) {
-	tokenList = ("" + ("" + text).replace(/[^\w\d]/g, ' ')).toLowerCase().split(' ');
+function tokenize(site, cb) {
+	tokenList = "" + ("" + site.text).toLowerCase().split(/[^\w]/gi);
+	site.tokens = {};
 	for(var i in tokenList) {
-		if(tokenList[i] !== "") {
+		if(tokenList[i].length > 2) {
 			var stemm = stemmer(tokenList[i]);
 			totalTokens++;
-			if(totalTokens%1000 === 0)
-				util.puts(totalTokens);
+			if(totalTokens%10000 === 0)
+				util.puts(totalTokens/1000 + 'k tokens');
 			if(typeof(tokens[stemm]) === 'undefined') {
-				if(numWords < 50000) {
 					tokens[stemm] = 1;
 					numWords++;
-				}
 			}
 			else {
 				tokens[stemm]++;
 			}
+			if(typeof(site.tokens[stemm]) === 'undefined') {
+					site.tokens[stemm] = 1;
+			}
+			else {
+				site.tokens[stemm]++;
+			}
 		}
 	}
 	if(cb)
-		cb();
+		cb(site);
 };
 
 function writeTokens(fn, cb) {
@@ -34,7 +39,7 @@ function writeTokens(fn, cb) {
 		fn = util.puts;
 	var tuples = [];
 	for (var i in tokens) {
-		if(tokens[i] < 5)
+		if(tokens[i] > 5)
 			tuples.push([tokens[i], i]);
 	}
 	tuples = tuples.sort(function(a,b) {
@@ -52,16 +57,44 @@ function writeTokens(fn, cb) {
 
 var srv = http.createServer(function(req, res) {
 	if(req.method === "POST") {
-		req.on('data', tokenize);
+		var data = "";
+		req.on('data', function(chunk){
+			data = data + chunk;
+		});
 		req.on('end', function() {
+			tokenize(JSON.parse(data), function(site) {
+				for(var i in site.tokens) {
+					var opts = {
+						host : 'localhost',
+						port : 8091,
+						path : '/riak/'+i+'/'+encodeURIComponent(site.url),
+						method : 'PUT',
+						headers : {'content-type' : 'application/json'}
+					};
+					
+					var req = http.request(opts, function(res) {
+				//		util.puts(JSON.stringify(res.headers));
+				//		res.on('data', util.puts);
+					});
+					req.on('error', util.puts);
+					req.end("" + site.tokens[i]);
+				};
+			});
+			//util.puts("foobar");
 			res.writeHead(200);
 			res.end();
 		});
 	}
 
 	if(req.method === "GET") {
-		res.writeHead(200);
-		writeTokens(function(str) {res.write(str + '\r\n');}, function(){res.end();})
+		util.puts(req.url);
+		if(req.url !== "/json") {
+			res.writeHead(200);
+			writeTokens(function(str) {res.write(str + '\r\n');}, function(){res.end();})
+		} else {
+			res.writeHead(200);
+			res.write(JSON.stringify(tokens));
+		}
 	}
 });
 srv.listen(13337);
