@@ -88,7 +88,8 @@ var srv = http.createServer(function(req, res) {
 			tokenize(JSON.parse(data), function(site) {
 				for(var i in site.tokens) {
 					if(tokens[i] > 3 && !stopwords[i]) {
-						// riak.putValue(i, encodeURIComponent(site.url), site.tokens[i]);
+						riak.putValue(i, encodeURIComponent(site.url), site.tokens[i]);
+//						riak.getVClock(i, encodeURIComponent(site.url));
 					}
 				}
 			});
@@ -112,5 +113,6 @@ var srv = http.createServer(function(req, res) {
 srv.listen(13337);
 
 function saveTokenNum(stemm) {
-//	riak.putValue('words', stemm, tokens[stemm]);
+	riak.putValue('words', stemm, tokens[stemm]);
+//	riak.getVClock('words', stemm);
 }
