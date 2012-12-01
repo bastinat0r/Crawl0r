@@ -1,8 +1,8 @@
-require('v8-profiler');
 var http = require('http');
 var util = require('util');
 var stemmer = require('porter-stemmer').stemmer;
-
+var riak = require('./riak.js');
+riak.clientId = 'analyzer' + Math.random();
 
 var tokens = {};
 var totalTokens = 0;
@@ -28,7 +28,7 @@ var stopwords = {
 };
 
 function tokenize(site, cb) {
-	tokenList = site.text.toLowerCase().split(/\W+/gi);
+	var tokenList = site.text.toLowerCase().split(/\W+/gi);
 	site.tokens = {};
 	for(var i in tokenList) {
 		if(tokenList[i].length > 2) {
@@ -37,8 +37,8 @@ function tokenize(site, cb) {
 			if(totalTokens%10000 === 0)
 				util.puts(totalTokens/1000 + 'k tokens');
 			if(typeof(tokens[stemm]) === 'undefined') {
-					tokens[stemm] = 1;
-					numWords++;
+				tokens[stemm] = 1;
+				numWords++;
 			}
 			else {
 				tokens[stemm]++;
@@ -47,7 +47,7 @@ function tokenize(site, cb) {
 				}
 			}
 			if(typeof(site.tokens[stemm]) === 'undefined') {
-					site.tokens[stemm] = 1;
+				site.tokens[stemm] = 1;
 			}
 			else {
 				site.tokens[stemm]++;
@@ -89,19 +89,7 @@ var srv = http.createServer(function(req, res) {
 			tokenize(JSON.parse(data), function(site) {
 				for(var i in site.tokens) {
 					if(tokens[i] > 3 && !stopwords[i]) {
-						var opts = {
-							host : 'localhost',
-							port : 8091,
-							path : '/riak/'+i+'/'+encodeURIComponent(site.url),
-							method : 'PUT',
-							headers : {'content-type' : 'application/json'}
-						};
-						var req = http.request(opts, function(res) {
-					//		util.puts(JSON.stringify(res.headers));
-					//		res.on('data', util.puts);
-						});
-						req.on('error', util.puts);
-						req.end("" + site.tokens[i]);
+						riak.putValue(i, encodeURIComponent(site.url), site.tokens[i]);
 					}
 				}
 			});
@@ -125,18 +113,5 @@ var srv = http.createServer(function(req, res) {
 srv.listen(13337);
 
 function saveTokenNum(stemm) {
-	var opts = {
-		host : 'localhost',
-		port : [8091,8092,8093,8094][nodeSel],
-		path : '/riak/words/'+stemm,
-		method : 'PUT',
-		headers : {'content-type' : 'application/json'}
-	};
-	nodeSel++;
-	nodeSel = nodeSel % 4;
-	var req = http.request(opts, function(res) {
-		res.on('data', util.puts);
-	});
-	req.on('error', util.puts);
-	req.end("" + tokens[stemm]);
+	riak.putValue('words', stemm, tokens[stemm]);
 }
