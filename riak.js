@@ -13,6 +13,7 @@ var opts = {
 module.exports.getValue = getValue;
 module.exports.getVClock = getVClock;
 module.exports.putValue = putValue;
+module.exports.clientId = clientId;
 
 
 function getValue(bucket, key, cb) {
@@ -22,7 +23,7 @@ function getValue(bucket, key, cb) {
 	opts.headers = {
 		'X-Riak-ClientId' : clientId,
 		'content-type' : 'application/json',
-	}
+	};
 	opts.port = [8091,8092,8093,8094][nodeSel];
 	opts.path = basePath + bucket + '/' + key;
 	var req = http.request(opts, function(res) {

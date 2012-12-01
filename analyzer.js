@@ -7,7 +7,6 @@ riak.clientId = 'analyzer' + Math.random();
 var tokens = {};
 var totalTokens = 0;
 var numWords = 0;
-var nodeSel = 0;
 
 var stopwords = {
 	the : 1,
@@ -89,7 +88,7 @@ var srv = http.createServer(function(req, res) {
 			tokenize(JSON.parse(data), function(site) {
 				for(var i in site.tokens) {
 					if(tokens[i] > 3 && !stopwords[i]) {
-						riak.putValue(i, encodeURIComponent(site.url), site.tokens[i]);
+						// riak.putValue(i, encodeURIComponent(site.url), site.tokens[i]);
 					}
 				}
 			});
@@ -113,5 +112,5 @@ var srv = http.createServer(function(req, res) {
 srv.listen(13337);
 
 function saveTokenNum(stemm) {
-	riak.putValue('words', stemm, tokens[stemm]);
+//	riak.putValue('words', stemm, tokens[stemm]);
 }
